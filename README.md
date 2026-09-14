@@ -59,17 +59,36 @@ we check if argc which is > 2 its an array ammm....arguments passed when you cal
 
     head -c 10 reads 10 bytes and exits.
 
-    Your mycat will read 4096 bytes, write them, read again, write again... and at some point try to write into a pipe whose reader is gone.
+    the  mycat will read 4096 bytes, write them, read again, write again... and at some point try to write into a pipe whose reader is gone.
 
     The kernel sends SIGPIPE. Your process dies. Exit status is 141.
 
 The > /dev/null prevents 10 NUL bytes from being printed to your terminal, which would be messy.
 
-If pipestatus: 141, . If it's 0 or something else, tell me and we'll figure out why.
+ pipestatus: 141 its correct ..no unless otherwise
 
 To see the SIGPIPE in the trace:
-text
+
 
 strace -e trace=write ./mycat /dev/zero 2>&1 | head -20
 
 You should see a write(1, ...) that returns -1 EPIPE, or the trace ends as the signal kills the process. Either way, you've witnessed it.
+
+
+# key_concepts
+
+    0, 1, 2 are just fds, pre-opened by the shell before exec.
+
+    3, 4 (from pipe()) are also just fds, opened by the shell for the pipe.
+
+    dup2 copies one fd onto another number, so the number 0 or 1 can point to a pipe.
+
+Key idea: an fd is a number; the kernel decides what it points to (file, terminal, pipe, socket). Your program just calls read(0, ...) and write(1, ...). The kernel figures out the rest.
+
+So:
+
+    ./mycat file → your program opens fd 3, writes to fd 1 (terminal).
+
+    ./mycat < file → shell opens fd 3, dup2(3,0), your program reads fd 0 (the file), writes fd 1.
+
+    echo hi | ./mycat → shell creates a pipe (fds 3,4), dup2(4,1) for echo, dup2(3,0) for mycat. Both programs use 0 and 1 like normal. Pipe is invisible to them.
