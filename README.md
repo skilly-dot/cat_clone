@@ -14,6 +14,8 @@ Test:
 
 Trace:  strace ./mycat < input 2>&1 | tail   # fd 0 = shell; fd 3 = own open
 
+./mycat mycat.c | diff - mycat.c //test run will be silent no diff between the two files
+
 
 strace ./mycat /etc/hostname 2>&1 | tail -8
 strace ./mycat < /etc/hostname 2>&1 | tail -8
@@ -50,3 +52,24 @@ we check if argc which is > 2 its an array ammm....arguments passed when you cal
     } //here we write to the STDOUT_FILENINO which is the terminal or the assocate file > as placed on the terminal
 
     #we close all open files //only close when we open or open is successful 
+
+    ./mycat /dev/zero | head -c 10 > /dev/null; echo "pipestatus: ${PIPESTATUS[0]}"
+
+    /dev/zero produces an infinite stream of zero bytes.
+
+    head -c 10 reads 10 bytes and exits.
+
+    Your mycat will read 4096 bytes, write them, read again, write again... and at some point try to write into a pipe whose reader is gone.
+
+    The kernel sends SIGPIPE. Your process dies. Exit status is 141.
+
+The > /dev/null prevents 10 NUL bytes from being printed to your terminal, which would be messy.
+
+If pipestatus: 141, . If it's 0 or something else, tell me and we'll figure out why.
+
+To see the SIGPIPE in the trace:
+text
+
+strace -e trace=write ./mycat /dev/zero 2>&1 | head -20
+
+You should see a write(1, ...) that returns -1 EPIPE, or the trace ends as the signal kills the process. Either way, you've witnessed it.
